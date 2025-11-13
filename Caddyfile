@@ -1,0 +1,50 @@
+{
+    # Global options
+    email admin@your-domain.com
+}
+
+your-domain.com {
+    # Encode responses
+    encode gzip zstd
+
+    # Security headers
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    }
+
+    # API routes
+    handle /api/* {
+        reverse_proxy backend:5000
+    }
+
+    # Health check
+    handle /health {
+        reverse_proxy backend:5000
+    }
+
+    # Frontend
+    handle /* {
+        reverse_proxy frontend:3000
+    }
+
+    # Logging
+    log {
+        output file /var/log/caddy/access.log
+        format json
+    }
+}
+
+# Monitoring subdomain (optional)
+grafana.your-domain.com {
+    reverse_proxy grafana:3000
+}
+
+# Prometheus subdomain (optional, secure with basic auth in production)
+prometheus.your-domain.com {
+    reverse_proxy prometheus:9090
+}

@@ -1,0 +1,103 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  password      String
+  name          String?
+  tier          UserTier  @default(FREE)
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  stories       Story[]
+  refreshTokens RefreshToken[]
+  
+  @@index([email])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  
+  @@index([userId])
+  @@index([token])
+}
+
+model Story {
+  id                String    @id @default(uuid())
+  title             String
+  description       String?
+  author            String
+  coverImage        String?
+  patreonTierRequired UserTier @default(FREE)
+  isPublished       Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  ownerId           String
+  owner             User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  
+  chapters          Chapter[]
+  
+  @@index([ownerId])
+  @@index([patreonTierRequired])
+  @@index([isPublished])
+}
+
+model Chapter {
+  id          String   @id @default(uuid())
+  storyId     String
+  story       Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  
+  title       String
+  order       Int
+  content     String?  @db.Text
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  media       Media[]
+  
+  @@unique([storyId, order])
+  @@index([storyId])
+}
+
+model Media {
+  id          String    @id @default(uuid())
+  chapterId   String
+  chapter     Chapter   @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  
+  type        MediaType
+  url         String
+  thumbnailUrl String?
+  order       Int
+  
+  createdAt   DateTime  @default(now())
+  
+  @@index([chapterId])
+}
+
+enum UserTier {
+  FREE
+  BRONZE
+  SILVER
+  GOLD
+  PLATINUM
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+}
