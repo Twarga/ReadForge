@@ -1,0 +1,100 @@
+---
+- name: Configure RSP Stories Studio Server
+  hosts: rsp_studio
+  become: yes
+  vars:
+    app_dir: /opt/rsp-studio
+    git_repo: https://github.com/YOUR-ORG/rsp-studio.git
+    domain: your-domain.com
+
+  tasks:
+    - name: Update system packages
+      apt:
+        update_cache: yes
+        upgrade: dist
+
+    - name: Install required packages
+      apt:
+        name:
+          - docker.io
+          - docker-compose
+          - git
+          - curl
+          - wget
+          - ufw
+          - fail2ban
+          - caddy
+          - python3-pip
+        state: present
+
+    - name: Ensure Docker is running
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Create application directory
+      file:
+        path: "{{ app_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Clone or update repository
+      git:
+        repo: "{{ git_repo }}"
+        dest: "{{ app_dir }}"
+        version: main
+        force: yes
+
+    - name: Copy environment file
+      copy:
+        src: "{{ app_dir }}/.env.example"
+        dest: "{{ app_dir }}/.env"
+        remote_src: yes
+        force: no
+
+    - name: Configure Caddy
+      copy:
+        src: "{{ app_dir }}/Caddyfile"
+        dest: /etc/caddy/Caddyfile
+        remote_src: yes
+      notify: Restart Caddy
+
+    - name: Configure UFW firewall
+      ufw:
+        rule: allow
+        port: "{{ item }}"
+        proto: tcp
+      loop:
+        - 22
+        - 80
+        - 443
+
+    - name: Enable UFW
+      ufw:
+        state: enabled
+
+    - name: Pull Docker images
+      community.docker.docker_compose:
+        project_src: "{{ app_dir }}"
+        pull: yes
+
+    - name: Start Docker Compose services
+      community.docker.docker_compose:
+        project_src: "{{ app_dir }}"
+        state: present
+        restarted: yes
+
+    - name: Run database migrations
+      command: docker-compose exec -T backend npx prisma migrate deploy
+      args:
+        chdir: "{{ app_dir }}"
+
+    - name: Clean up Docker resources
+      command: docker system prune -af
+
+  handlers:
+    - name: Restart Caddy
+      systemd:
+        name: caddy
+        state: restarted
